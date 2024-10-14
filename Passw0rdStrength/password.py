@@ -96,20 +96,19 @@ def main():
     parser.add_argument('-m', '--check-most-used', action='store_true', help='Check against most used password list')
     parser.add_argument('-l', '--check-leaked', action='store_true', help='Check against leaked password list')
     parser.add_argument('-f', '--file', type=str, help='Custom password file to check against')
-    parser.add_argument('-g', '--generate', type=int, help='Generate a random password with the specified length')
+    parser.add_argument('-g', '--generate', type=int, nargs='?', help='Generate a random password with the specified length')
     parser.add_argument('-v','--verbose', action='store_true', help='Enable verbose output')
     
     args = parser.parse_args()
-
-    if not args.password or args.generate:
-        print("Please provide a password as an argument.")
+    if not args.password and not args.generate:
+        print("Please provide a password as an argument or use the generate option.")
         return
 
     check_common = args.check_common or not (args.check_most_used or args.check_leaked or args.file or args.generate)
     check_most_used = args.check_most_used or not (args.check_common or args.check_leaked or args.file or args.generate)
     check_leaked = args.check_leaked or not (args.check_common or args.check_most_used or args.file or args.generate)
-    generate_password = args.generate or not (args.check_common or args.check_most_used or args.check_leaked or args.file)
-
+    generate_password = args.generate or not (check_common or check_most_used or check_leaked or args.file)
+    print(generate_password)
     check_password(args.password, check_common, check_most_used, check_leaked, args.file, args.verbose, generate_password)
 
 if __name__ == "__main__":
