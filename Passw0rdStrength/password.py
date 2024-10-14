@@ -1,7 +1,7 @@
 import re
-import sys
 import hashlib
 import requests
+import argparse
 
 def is_strong_password(password):
     if len(password) < 8:
@@ -14,91 +14,93 @@ def is_strong_password(password):
         return False
     return True
 
-
-
-def main():
-    if len(sys.argv) < 2:
-        print("""
-        _______  _______  _______  _______           _______  _______  ______  
-        (  ____ )(  ___  )(  ____ \(  ____ \|\     /|(  ___  )(  ____ )(  __  \ 
-        | (    )|| (   ) || (    \/| (    \/| )   ( || (   ) || (    )|| (  \  )
-        | (____)|| (___) || (_____ | (_____ | | _ | || |   | || (____)|| |   ) |
-        |  _____)|  ___  |(_____  )(_____  )| |( )| || |   | ||     __)| |   | |
-        | (      | (   ) |      ) |      ) || || || || |   | || (\ (   | |   ) |
-        | )      | )   ( |/\____) |/\____) || () () || (___) || ) \ \__| (__/  )
-        |/       |/     \|\_______)\_______)(_______)(_______)|/   \__/(______/ 
-                                                                                
-        _______           _______  _______  _        _______  _______          
-        (  ____ \|\     /|(  ____ \(  ____ \| \    /\(  ____ \(  ____ )         
-        | (    \/| )   ( || (    \/| (    \/|  \  / /| (    \/| (    )|         
-        | |      | (___) || (__    | |      |  (_/ / | (__    | (____)|         
-        | |      |  ___  ||  __)   | |      |   _ (  |  __)   |     __)         
-        | |      | (   ) || (      | |      |  ( \ \ | (      | (\ (            
-        | (____/\| )   ( || (____/\| (____/\|  /  \ \| (____/\| ) \ \__         
-        (_______/|/     \|(_______/(_______/|_/    \/(_______/|/   \__/         
-                                                                                
-        """)
-        print("Welcome to the password checker!")
-        print("This program will check if your password is strong enough.")
-        print("Let's get started!")
-        print("")
-        print("Please enter your password below:")
-        password = input()
-    else:
-        password = sys.argv[1]
-
-
-
+def check_password(password, check_common, check_most_used, check_leaked, custom_file, verbose):
     compromised = False
     if is_strong_password(password):
-        print("Your password meets the requirements!")
-        print("Offline password checking...")
-        print("Checking if your password is in the common password list...")
-        with open("common_passwd.txt", "r") as f:
-            line = f.readline()
-            while line:
-                if password.lower() == line.strip().lower():
-                    print("Your password has been compromised!")
-                    compromised = True
-                    return
-                line = f.readline()
-
-        print("Checking if your password is in the most used password list...")
-        with open("most_used_passwd.txt", "r") as f:
-            line = f.readline()
-            while line:
-                if password.lower() == line.strip().lower():
-                    print("Your password is one of the most used passwords!")
-                    compromised = True
-                    return
-                line = f.readline()
-        print("Online password checking...")
-        try:
-            requests.get("https://www.google.com", timeout=5)
-        except requests.ConnectionError:
-            print("No internet connection available.")
-            return
+        if verbose:
+            print("Your password meets the requirements!")
         
-        print("Checking if your password is in the leaked password list...")
-        sha1_password = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
-        prefix = sha1_password[:5]
-        suffix = sha1_password[5:]
-        url = f"https://api.pwnedpasswords.com/range/{prefix}"
-        response = requests.get(url)
-        if response.status_code == 200:
-            hashes = response.text.split("\r\n")
-            for h in hashes:
-                if h.split(":")[0] == suffix:
-                    print("Your password has been leaked! It has been used " + h.split(":")[1] + " times.")
-                    compromised = True
-                    return
+        if check_common:
+            if verbose:
+                print("Checking against common passwords...")
+            with open("common_passwd.txt", "r") as f:
+                for line in f:
+                    if password.lower() == line.strip().lower():
+                        print("Your password has been compromised in the common password list!")
+                        compromised = True
+                        return
+
+        if check_most_used:
+            if verbose:
+                print("Checking against most used passwords...")
+            with open("most_used_passwd.txt", "r") as f:
+                for line in f:
+                    if password.lower() == line.strip().lower():
+                        print("Your password is one of the most used passwords!")
+                        compromised = True
+                        return
+
+        if custom_file:
+            if verbose:
+                print(f"Checking against passwords in {custom_file}...")
+            try:
+                with open(custom_file, "r") as f:
+                    for line in f:
+                        if password.lower() == line.strip().lower():
+                            print(f"Your password has been compromised in the custom password list from {custom_file}!")
+                            compromised = True
+                            return
+            except FileNotFoundError:
+                print(f"The file {custom_file} does not exist.")
+                return
+        
+        if check_leaked:
+            if verbose:
+                print("Checking for leaked passwords...")
+            try:
+                requests.get("https://www.google.com", timeout=5)
+            except requests.ConnectionError:
+                print("No internet connection available.")
+                return
+            
+            sha1_password = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
+            prefix = sha1_password[:5]
+            suffix = sha1_password[5:]
+            url = f"https://api.pwnedpasswords.com/range/{prefix}"
+            response = requests.get(url)
+            if response.status_code == 200:
+                hashes = response.text.split("\r\n")
+                for h in hashes:
+                    if h.split(":")[0] == suffix:
+                        print("Your password has been leaked! It has been used " + h.split(":")[1] + " times.")
+                        compromised = True
+                        return
+        
         if not compromised:
             print("Your password is secured!")
     else:
-        print("Your password is weak! Please try again. Remember to use at least 8 characters, both uppercase and lowercase characters, at least one numerical digit, and at least one special character.")
+        print("Your password is weak! Please try again.")
 
+def main():
+    parser = argparse.ArgumentParser(description='Password Strength Checker')
+    parser.add_argument('password', type=str, nargs='?', help='Password to check')
+    parser.add_argument('-c', '--check-common', action='store_true', help='Check against common password list')
+    parser.add_argument('-m', '--check-most-used', action='store_true', help='Check against most used password list')
+    parser.add_argument('-l', '--check-leaked', action='store_true', help='Check against leaked password list')
+    parser.add_argument('-f', '--file', type=str, help='Custom password file to check against')
+    parser.add_argument('-v','--verbose', action='store_true', help='Enable verbose output')
+    
+    args = parser.parse_args()
 
+    if not args.password:
+        print("Please provide a password as an argument.")
+        return
 
+    check_common = args.check_common or not (args.check_most_used or args.check_leaked or args.file)
+    check_most_used = args.check_most_used or not (args.check_common or args.check_leaked or args.file)
+    check_leaked = args.check_leaked or not (args.check_common or args.check_most_used or args.file)
+
+    check_password(args.password, check_common, check_most_used, check_leaked, args.file, args.verbose)
 
 if __name__ == "__main__":
     main()
