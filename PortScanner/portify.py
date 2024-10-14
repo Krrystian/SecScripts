@@ -1,18 +1,26 @@
 import argparse
 import nmap
+import os
+import sys
+
+def check_root(options):
+    if os.geteuid() != 0 and options:
+        print("This script requires root privileges to run some nmap scans.")
+        print("Please run the script with 'sudo'.")
+        sys.exit(1)
 
 def main():
     parser = argparse.ArgumentParser(description='Portify - A simple porting tool')
     parser.add_argument('-t', '--target', nargs='?', type=str, help='Target address', required=False)
-    parser.add_argument('-o', '--options', nargs='?', type=str, help='Nmap options', required=False)
+    parser.add_argument('-o', '--options', nargs='?', type=str, help='Nmap options (require admin access)', required=False)
     args = parser.parse_args()
+    check_root(args.options)
 
     target = args.target or 'scanme.nmap.org'
     options = args.options or "-sT -T3 -F"
-    if target:
-        print('Target address:', target)
-        print('Options:', options)
-
+    
+    print('Target address:', target)
+    print('Options:', options)
     nm = nmap.PortScanner()
     nm.scan(target, arguments=options)
     for host in nm.all_hosts():
@@ -28,3 +36,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
